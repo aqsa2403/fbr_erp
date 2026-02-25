@@ -28,7 +28,7 @@ require_login();
             <div>
                 <h1 id="main-title" class="text-3xl font-black text-slate-800 tracking-tight">
                     <?= $page_title ?? 'Dashboard' ?></h1>
-                <p class="text-slate-500 font-medium">FBR Digital Invoicing & ERP Backend</p>
+                <p class="text-slate-500 font-medium">FBR Digital Invoicing & ERP </p>
             </div>
             <div class="flex gap-3">
                 <span class="bg-blue-100 text-blue-700 font-bold px-4 py-2 rounded-lg border border-blue-200">
