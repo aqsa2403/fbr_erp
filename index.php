@@ -1,7 +1,5 @@
 <?php
-$page_title = 'Dashboard';
-require_once 'includes/header.php';
-
+require_once 'config/config.php';
 $db = Database::getInstance()->getConnection();
 
 $stmt = $db->query("SELECT COUNT(*) as total FROM DI_Invoice_Master");
@@ -42,6 +40,9 @@ foreach ($weeklyDataRaw as $row) {
 
 $stmt = $db->query("SELECT TOP 5 InvoiceNumber, CAST(InvoiceDate as DATE) as InvoiceDate, BuyerBusinessName, TotalInvoiceValue, IsSubmittedToFBR FROM DI_Invoice_Master ORDER BY CreatedOn DESC");
 $recentInvoices = $stmt->fetchAll();
+
+$page_title = 'Dashboard';
+require_once 'includes/header.php';
 ?>
 
 <div id="stats-section" class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 text-center">

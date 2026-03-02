@@ -1,7 +1,5 @@
 <?php
-$page_title = 'Companies';
-require_once 'includes/header.php';
-
+require_once 'config/config.php';
 $db = Database::getInstance()->getConnection();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -58,13 +56,15 @@ if (isset($_GET['delete'])) {
         $stmt = $db->prepare("DELETE FROM DI_Company WHERE CompanyID = ?");
         $stmt->execute([$_GET['delete']]);
     } catch (PDOException $e) {
-        // If deletion fails (e.g., due to foreign keys), it will just fail silently or we can show an error, but let's just redirect for now.
     }
     redirect('companies.php');
 }
 
 $stmt = $db->query("SELECT * FROM DI_Company ORDER BY CreatedOn DESC");
 $companies = $stmt->fetchAll();
+
+$page_title = 'Companies';
+require_once 'includes/header.php';
 ?>
 
 <div class="flex justify-between items-end mb-8">

@@ -4,6 +4,16 @@ require_once 'includes/header.php';
 
 $db = Database::getInstance()->getConnection();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] === 'update_status') {
+        $retryId = $_POST['retryId'];
+        $status = $_POST['status'];
+        $stmt = $db->prepare("UPDATE DI_FBR_RetryQueue SET Status = ? WHERE RetryID = ?");
+        $stmt->execute([$status, $retryId]);
+        redirect('fbr_sync.php');
+    }
+}
+
 $stmt = $db->query("
     SELECT r.*, i.InvoiceNumber 
     FROM DI_FBR_RetryQueue r 
@@ -57,12 +67,13 @@ $queue = $stmt->fetchAll();
                     <th class="p-5">Retry Count</th>
                     <th class="p-5">Next Retry</th>
                     <th class="p-5">Error Message</th>
+                    <th class="p-5 text-center">Action</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-50 text-sm">
                 <?php if (empty($queue)): ?>
                     <tr>
-                        <td colspan="6" class="p-5 text-center text-slate-500">Queue is empty. All systems normal.</td>
+                        <td colspan="7" class="p-5 text-center text-slate-500">Queue is empty. All systems normal.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($queue as $q): ?>
@@ -83,10 +94,25 @@ $queue = $stmt->fetchAll();
                             </td>
                             <td class="p-5 font-bold text-slate-700"><?= $q['RetryCount'] ?></td>
                             <td class="p-5 text-slate-500 font-medium">
-                                <?= $q['NextRetryTime'] ? date('Y-m-d H:i', strtotime($q['NextRetryTime'])) : '-' ?></td>
+                                <?= $q['NextRetryTime'] ? date('Y-m-d H:i', strtotime($q['NextRetryTime'])) : '-' ?>
+                            </td>
                             <td class="p-5 text-red-500 text-xs font-mono max-w-xs truncate"
                                 title="<?= htmlspecialchars($q['ErrorMessage']) ?>">
                                 <?= htmlspecialchars($q['ErrorMessage']) ?>
+                            </td>
+                            <td class="p-5 text-center">
+                                <form action="fbr_sync.php" method="POST" class="inline">
+                                    <input type="hidden" name="action" value="update_status">
+                                    <input type="hidden" name="retryId" value="<?= $q['RetryID'] ?>">
+                                    <select name="status" onchange="this.form.submit()"
+                                        class="text-[10px] font-bold border rounded p-1 bg-white">
+                                        <option value="Pending" <?= $q['Status'] === 'Pending' ? 'selected' : '' ?>>Pending
+                                        </option>
+                                        <option value="Retrying" <?= $q['Status'] === 'Retrying' ? 'selected' : '' ?>>Retrying
+                                        </option>
+                                        <option value="Failed" <?= $q['Status'] === 'Failed' ? 'selected' : '' ?>>Failed</option>
+                                    </select>
+                                </form>
                             </td>
                         </tr>
                     <?php endforeach; ?>

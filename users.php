@@ -1,29 +1,47 @@
 <?php
-$page_title = 'Users';
-require_once 'includes/header.php';
-
+require_once 'config/config.php';
 $db = Database::getInstance()->getConnection();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_user') {
-    $username = trim($_POST['username'] ?? '');
-    $fullname = trim($_POST['fullname'] ?? '');
-    $password = $_POST['password'] ?? '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] === 'add_user') {
+        $username = trim($_POST['username'] ?? '');
+        $fullname = trim($_POST['fullname'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $roleId = $_POST['roleId'] ?? null;
+        $branchId = $_POST['branchId'] ?? null;
 
-    if (!empty($username) && !empty($password)) {
-        $hash = password_hash($password, PASSWORD_DEFAULT);
+        if (!empty($username) && !empty($password)) {
+            $db->beginTransaction();
+            try {
+                $hash = password_hash($password, PASSWORD_DEFAULT);
+                $stmt = $db->prepare("INSERT INTO DI_User (Username, PasswordHash, FullName, IsActive, CreatedOn) VALUES (:uname, :hash, :fname, 1, GETDATE())");
+                $stmt->execute(['uname' => $username, 'hash' => $hash, 'fname' => $fullname]);
+                $userId = $db->lastInsertId();
 
-        $stmt = $db->prepare("INSERT INTO DI_User (Username, PasswordHash, FullName, IsActive, CreatedOn) VALUES (:uname, :hash, :fname, 1, GETDATE())");
-        $stmt->execute([
-            'uname' => $username,
-            'hash' => $hash,
-            'fname' => $fullname
-        ]);
-        redirect('users.php');
+                if ($roleId) {
+                    $db->prepare("INSERT INTO DI_UserRole (UserID, RoleID) VALUES (?, ?)")->execute([$userId, $roleId]);
+                }
+                if ($branchId) {
+                    $db->prepare("INSERT INTO DI_UserBranch (UserID, BranchID) VALUES (?, ?)")->execute([$userId, $branchId]);
+                }
+
+                $db->commit();
+                redirect('users.php');
+            } catch (Exception $e) {
+                $db->rollBack();
+            }
+        }
     }
 }
 
+$roles = $db->query("SELECT * FROM DI_Role")->fetchAll();
+$branches = $db->query("SELECT BranchID, BranchName FROM DI_Branch WHERE IsActive = 1")->fetchAll();
+
 $stmt = $db->query("SELECT UserID, Username, FullName, IsActive, CreatedOn FROM DI_User ORDER BY CreatedOn DESC");
 $users = $stmt->fetchAll();
+
+$page_title = 'Users';
+require_once 'includes/header.php';
 ?>
 
 <div class="flex justify-between items-end mb-8">
@@ -54,10 +72,24 @@ $users = $stmt->fetchAll();
                 class="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl outline-none focus:border-blue-500">
         </div>
 
-        <div class="md:col-span-2">
-            <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Password *</label>
-            <input type="password" name="password" required
-                class="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl outline-none focus:border-blue-500">
+        <div class="md:col-span-1">
+            <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Role</label>
+            <select name="roleId"
+                class="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl outline-none focus:border-blue-500 font-bold">
+                <option value="">Select Role</option>
+                <?php foreach ($roles as $r): ?>
+                    <option value="<?= $r['RoleID'] ?>"><?= $r['RoleName'] ?></option><?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="md:col-span-1">
+            <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Assigned Branch</label>
+            <select name="branchId"
+                class="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl outline-none focus:border-blue-500 font-bold">
+                <option value="">Select Branch</option>
+                <?php foreach ($branches as $b): ?>
+                    <option value="<?= $b['BranchID'] ?>"><?= $b['BranchName'] ?></option><?php endforeach; ?>
+            </select>
         </div>
 
         <div class="md:col-span-2 mt-2">
@@ -66,6 +98,12 @@ $users = $stmt->fetchAll();
                 User</button>
         </div>
     </form>
+</div>
+
+<div class="mb-4">
+    <a href="roles.php"
+        class="text-blue-600 font-bold text-sm bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-all"><i
+            class="fas fa-user-tag mr-2"></i> Configure System Roles</a>
 </div>
 
 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -77,35 +115,31 @@ $users = $stmt->fetchAll();
             <thead
                 class="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-widest border-b border-slate-100">
                 <tr>
-                    <th class="p-5">ID</th>
                     <th class="p-5">Username</th>
                     <th class="p-5">Full Name</th>
+                    <th class="p-5">Effective Role</th>
                     <th class="p-5">Status</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-50 text-sm">
-                <?php if (empty($users)): ?>
-                    <tr>
-                        <td colspan="4" class="p-5 text-center text-slate-500">No users found.</td>
+                <?php
+                $stmt = $db->query("SELECT u.*, r.RoleName FROM DI_User u LEFT JOIN DI_UserRole ur ON u.UserID = ur.UserID LEFT JOIN DI_Role r ON ur.RoleID = r.RoleID ORDER BY u.CreatedOn DESC");
+                $userList = $stmt->fetchAll();
+                ?>
+                <?php foreach ($userList as $u): ?>
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-5 font-bold text-slate-700"><?= htmlspecialchars($u['Username']) ?></td>
+                        <td class="p-5 text-slate-500 font-medium"><?= htmlspecialchars($u['FullName']) ?></td>
+                        <td class="p-5 font-bold text-blue-600">
+                            <?= htmlspecialchars($u['RoleName'] ?? 'No Role Assigned') ?></td>
+                        <td class="p-5">
+                            <span
+                                class="px-3 py-1 rounded-full text-[10px] font-black uppercase <?= $u['IsActive'] ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600' ?>">
+                                <?= $u['IsActive'] ? 'Active' : 'Inactive' ?>
+                            </span>
+                        </td>
                     </tr>
-                <?php else: ?>
-                    <?php foreach ($users as $u): ?>
-                        <tr class="hover:bg-slate-50">
-                            <td class="p-5 font-bold text-blue-600"><?= $u['UserID'] ?></td>
-                            <td class="p-5 font-bold text-slate-700"><?= htmlspecialchars($u['Username']) ?></td>
-                            <td class="p-5 text-slate-500 font-medium"><?= htmlspecialchars($u['FullName']) ?></td>
-                            <td class="p-5">
-                                <?php if ($u['IsActive']): ?>
-                                    <span
-                                        class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-600 shadow-sm">Active</span>
-                                <?php else: ?>
-                                    <span
-                                        class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-red-100 text-red-600 shadow-sm">Inactive</span>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                <?php endforeach; ?>
             </tbody>
         </table>
     </div>

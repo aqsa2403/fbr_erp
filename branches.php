@@ -1,7 +1,5 @@
 <?php
-$page_title = 'Branches';
-require_once 'includes/header.php';
-
+require_once 'config/config.php';
 $db = Database::getInstance()->getConnection();
 
 $companiesStmt = $db->query("SELECT CompanyID, CompanyName FROM DI_Company WHERE IsActive = 1");
@@ -69,13 +67,15 @@ if (isset($_GET['delete'])) {
         $stmt = $db->prepare("DELETE FROM DI_Branch WHERE BranchID = ?");
         $stmt->execute([$_GET['delete']]);
     } catch (PDOException $e) {
-        // Silently fail if there's a foreign key constraint issue for now
     }
     redirect('branches.php');
 }
 
 $stmt = $db->query("SELECT b.*, c.CompanyName FROM DI_Branch b LEFT JOIN DI_Company c ON b.CompanyID = c.CompanyID ORDER BY b.CreatedOn DESC");
 $branches = $stmt->fetchAll();
+
+$page_title = 'Branches';
+require_once 'includes/header.php';
 ?>
 
 <div class="flex justify-between items-end mb-8">
